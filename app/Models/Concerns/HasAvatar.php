@@ -2,25 +2,20 @@
 
 namespace Zhiyi\Plus\Models\Concerns;
 
+use Zhiyi\Plus\Cdn\Refresh;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Filesystem\FilesystemManager;
 use Zhiyi\Plus\Contracts\Cdn\UrlFactory as CdnUrlFactoryContract;
-use Zhiyi\Plus\Contracts\Model\ShouldAvatar as ShouldAvatarContract;
 
 trait HasAvatar
 {
     /**
-     * Bootstrap the trait.
+     * Get avatar trait.
      *
-     * @return void
+     * @return string|int
      * @author Seven Du <shiweidu@outlook.com>
      */
-    public static function bootHasAvatar()
-    {
-        if (! (new static) instanceof ShouldAvatarContract) {
-            throw new \Exception(sprintf('使用"HasAvatar"性状必须实现"%s"契约', ShouldAvatarContract::class));
-        }
-    }
+    abstract public function getAvatarKey(): string;
 
     /**
      * avatar extensions.
@@ -110,15 +105,13 @@ trait HasAvatar
         $disk = $this->filesystem()->disk(
             config('cdn.generators.filesystem.disk')
         );
-        if ($disk->exists($filename)) {
-            $disk->deleteDirectory($filename);
-        }
 
-        $disk->delete(array_reduce($this->getAvatarExtensions(), function (array $collect, $extension) use ($filename) {
+        $files = array_reduce($this->getAvatarExtensions(), function (array $collect, $extension) use ($filename) {
             $collect[] = $filename.'.'.$extension;
 
             return $collect;
-        }, [$filename]));
+        }, []);
+        app(CdnUrlFactoryContract::class)->generator()->refresh(new Refresh($files, [$filename]));
 
         return $avatar->storeAs($path, $name, config('cdn.generators.filesystem.disk'));
     }

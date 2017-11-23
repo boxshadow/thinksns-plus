@@ -59,7 +59,7 @@
                     <div class="form-group">
                         <label class="control-label col-md-2"><span class="text-danger">*</span>认证类型</label>
                         <div class="col-md-5">
-                          <select class="form-control" v-model="certification.type" disabled>
+                          <select class="form-control" v-model="certification.type">
                             <option :value="categroy.name" v-for="categroy in categories">{{ categroy.display_name }}</option>
                           </select>
                         </div>
@@ -129,7 +129,8 @@
 
 <script>
 import request, { createRequestURI } from '../../util/request';
-import plusMessageBundle from 'plus-message-bundle';
+import { plusMessageFirst } from '../../filters';
+import { uploadFile } from '../../util/upload';
 const PersonalCertificationEdit = {
     data: () => ({
         loadding: true,
@@ -165,6 +166,7 @@ const PersonalCertificationEdit = {
           ).then(response => {
             this.categories = response.data;
           }).catch(({ response: { data: { errors = ['加载认证详情失败'] } = {} } = {} }) => {
+            this.message.error = plusMessageFirst(errors);
           }); 
         },
         getCertification (id) {
@@ -208,8 +210,7 @@ const PersonalCertificationEdit = {
             this.message.success = message;
           }).catch(({ response: { data = {} } = {} }) => {
             $('#edit-btn').button('reset');
-            let Message = new plusMessageBundle(data);
-            this.message.error = Message.getMessage();
+            this.message.error = plusMessageFirst(data);
           });
         },
         /**
@@ -219,62 +220,38 @@ const PersonalCertificationEdit = {
             this.errorMessage = this.successMessage = '';
         },
         uploadAttachment (e) {
-            var that = this;
-            let file = e.target.files[0]; 
-            let param = new FormData();
-            param.append('file', file);
-            //  设置请求头
-            let config = {
-                headers: { 
-                    'Content-Type': 'multipart/form-data',
-                    'Authorization': 'Bearer ' + window.TS.token 
-                }
-            };
-            let reader = new FileReader(); 
-            reader.readAsDataURL(file); 
-            reader.onload = function(e) {
-               request.post('/api/v2/files', param, config)
-               .then((response) => {
-                  const { id: id, message: [message] = [] } = response.data;
+          uploadFile(e.target.files[0], (id) => {
+            
+              let upload = this.upload;
+              upload[upload.type == 1 ? 'front' : 'back'] = `${window.TS.api}/files/${id}`;
 
-                  let upload = that.upload;
-                  let attachmentUrl =  `/api/v2/files/${id}`;
+              let cer = this.certification;
 
-                  if (upload.type == 1) {
-                    upload.front = attachmentUrl;
-                  } else {
-                    upload.back = attachmentUrl;
-                  }
-
-                  if (that.certification.type == 'org') {
-                    that.certification.files = [id];
-                  } else {
-                    let filesLength = that.certification.files.length;
-                    if (filesLength <= 0) {
-                      that.certification.files = [id]
+              if (cer.type == 'org') {
+                cer.files = [id];
+              } else {
+                let length = cer.files.length;
+                if (length <= 0) {
+                  cer.files = [id]
+                } else {
+                  if (length == 1) {
+                    if (upload.type == 2) {
+                      cer.files.push(id);
                     } else {
-                      if (filesLength == 1) {
-                        if (upload.type == 2) {
-                          that.certification.files.push(id);
-                        } else {
-                          that.certification.files.unshift(id);
-                        }
-                      } else {
-                        if (upload.type == 1) {
-                          that.certification.files.splice(0, 1);
-                          that.certification.files.unshift(id);
-                        } else {
-                          that.certification.files.splice(1, 1);
-                          that.certification.files.push(id);
-                        }
-                      }
+                      cer.files.unshift(id);
+                    }
+                  } else {
+                    if (upload.type == 1) {
+                      cer.files.splice(0, 1);
+                      cer.files.unshift(id);
+                    } else {
+                      cer.files.splice(1, 1);
+                      cer.files.push(id);
                     }
                   }
-                }).catch(({ response: { data = {} } = {} }) => {
-                  let Message = new plusMessageBundle(data);
-                  that.message.error = Message.getMessage();
-                });
-            }
+                }
+              }
+          });
         },
         triggerUpload (type) {
           this.upload.type = type;

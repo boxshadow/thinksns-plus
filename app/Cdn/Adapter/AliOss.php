@@ -2,6 +2,8 @@
 
 namespace Zhiyi\Plus\Cdn\Adapter;
 
+use OSS\OssClient;
+use Zhiyi\Plus\Cdn\Refresh;
 use Zhiyi\Plus\Models\File;
 use Zhiyi\Plus\Contracts\Cdn\UrlGenerator as FileUrlGeneratorContract;
 
@@ -25,6 +27,10 @@ class AliOss implements FileUrlGeneratorContract
 
     const OSS_HTTP_GET = 'GET';
 
+    const OSS_HTTP_DELETE = 'DELETE';
+
+    const OSS_HTTP_POST = 'POST';
+
     /**
      * 构造方法，初始化 AliyunOSS 基本信息.
      *
@@ -41,6 +47,9 @@ class AliOss implements FileUrlGeneratorContract
         $this->ssl = config('cdn.generators.alioss.ssl', false);
         $this->public = config('cdn.generators.alioss.public', true);
         $this->expires = config('cdn.generators.alioss.expires', 3600);
+
+        $this->client = new OssClient($this->accessKeyId, $this->accessKeySecret, $this->endpoint);
+        $this->client->setUseSSL($this->ssl);
     }
 
     /**
@@ -65,6 +74,36 @@ class AliOss implements FileUrlGeneratorContract
     }
 
     /**
+     * Refresh the cdn files and dirs.
+     *
+     * @param \Zhiyi\Plus\Cdn\Refresh $refresh
+     * @return void
+     * @author Seven Du <shiweidu@outlook.com>
+     */
+    public function refresh(Refresh $refresh)
+    {
+        $files = [];
+        foreach ($refresh->getDirs() as $dir) {
+            $query = [
+                'prefix' => $dir,
+                'max-keys' => 20,
+            ];
+
+            $listObjectInfo = $this->client->listObjects($this->bucket, $query);
+            $objectList = $listObjectInfo->getObjectList();
+
+            $delete = [];
+            foreach ($objectList as $key => $object) {
+                $delete[] = $object->getKey();
+            }
+
+            if ($delete) {
+                $this->client->deleteObjects($this->bucket, $delete);
+            }
+        }
+    }
+
+    /**
      * make private url.
      *
      * @param string $filename
@@ -74,9 +113,7 @@ class AliOss implements FileUrlGeneratorContract
      */
     protected function makeSignURL(string $filename, array $extra): string
     {
-        $publicUrl = $this->makePublicURL($filename, $extra);
-
-        return $publicUrl.$this->makeSign(
+        return $this->client->signUrl(
             $this->bucket,
             $filename,
             $this->expires, // 授权过期时间。
@@ -268,36 +305,5 @@ class AliOss implements FileUrlGeneratorContract
         }
 
         return 'http';
-    }
-
-    /**
-     * sign url.
-     *
-     * @param string $bucket
-     * @param string $filename
-     * @param int $timeout
-     * @param string $method
-     * @param array $process
-     * @return string
-     * @author BS <414606094@qq.com>
-     */
-    protected function makeSign(string $bucket, string $filename, int $timeout = 60, string $method = self::OSS_HTTP_GET, array $process)
-    {
-        $params = collect($process)->map(function ($value, $key) {
-            return $key.'='.$value;
-        })->implode('&');
-
-        $CanonicalizedResource = $bucket.'/'.$filename;
-        if ($params) {
-            $CanonicalizedResource = $CanonicalizedResource.'?'.$params;
-        }
-        $expireTime = time() + $timeout;
-        $unsigndata = $method."\n\n\n".$expireTime."\n/".$CanonicalizedResource;
-
-        $signature = urlencode(base64_encode(hash_hmac('sha1', $unsigndata, $this->accessKeySecret, true)));
-
-        $stringToSign = $params ? '&OSSAccessKeyId=%s&Expires=%s&Signature=%s' : '?OSSAccessKeyId=%s&Expires=%s&Signature=%s';
-
-        return sprintf($stringToSign, $this->accessKeyId, $expireTime, $signature);
     }
 }

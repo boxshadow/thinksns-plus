@@ -19,7 +19,7 @@ class FindUserController extends Controller
      */
     public function populars(Request $request, UserExtraModel $userExtra, ResponseContract $response)
     {
-        $limit = $request->input('limit', 20);
+        $limit = $request->input('limit', 15);
         $offset = $request->input('offset', 0);
         $user_id = $request->user('api')->id ?? 0;
 
@@ -54,7 +54,7 @@ class FindUserController extends Controller
      */
     public function latests(Request $request, UserModel $user, ResponseContract $response)
     {
-        $limit = $request->input('limit', 20);
+        $limit = $request->input('limit', 15);
         $offset = $request->input('offset', null);
         $user_id = $request->user('api')->id ?? 0;
 
@@ -113,7 +113,7 @@ class FindUserController extends Controller
     public function search(Request $request, UserModel $user, ResponseContract $response, UserRecommendedModel $userRecommended)
     {
         $user_id = $request->user('api')->id ?? 0;
-        $limit = $request->input('limit', 20);
+        $limit = $request->input('limit', 15);
         $offset = $request->input('offset', 0);
         $keyword = $request->input('keyword', null);
 
@@ -131,6 +131,7 @@ class FindUserController extends Controller
                 $users->map(function ($user) use ($user_id) {
                     $user->user->following = $user->user->hasFollwing($user_id);
                     $user->user->follower = $user->user->hasFollower($user_id);
+                    $user->user->load('tags');
 
                     return $user->user;
                 })
@@ -142,6 +143,7 @@ class FindUserController extends Controller
             ->when($offset, function ($query) use ($offset) {
                 return $query->offset($offset);
             })
+            ->with('tags')
             ->limit($limit)
             ->orderBy('id', 'desc')
             ->get();
@@ -168,7 +170,7 @@ class FindUserController extends Controller
             return response()->json([])->setStatusCode(200);
         }
 
-        $limit = $request->input('limit', 20);
+        $limit = $request->input('limit', 15);
         $offset = $request->input('offset', 0);
         $recommends = $users = [];
 

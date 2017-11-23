@@ -32,23 +32,11 @@
                               <div class="col-md-6">
                                 <input type="text" class="form-control" placeholder="用户ID" v-model="certification.user_id" disabled="disabled">
                               </div>
-                              <div class="col-md-6 dropdown" :class="dropdownMenuClass">
-                                  <input type="text" class="form-control" placeholder="输入用户名搜索" @input="searchUser" v-model="username">
-                                  <ul class="dropdown-menu" style="margin-left:15px;max-height: 200px;overflow: auto;">
-                                    <template v-if="users.length">
-                                      <li  v-for="user in users" @click.prevent="choiceUser(user.id)">
-                                        <a href="javascript:;">
-                                          <img :src="user.avatar+'?w=40&height=40'" class="img-circle" :class="$style.avatar" v-if="user.avatar">
-                                          <i class="glyphicon glyphicon-user" v-else></i>
-                                          <span>{{ user.name }}</span>
-                                        </a>
-                                      </li>
-                                    </template>
-                                    <template v-else>
-                                      <li @click.prevent="choiceUser(0)"><a href="javascript:;">无相关记录</a></li>
-                                    </template>
-                                  </ul>
+                              <!-- user search satart -->
+                              <div class="col-md-6">
+                                <search-user :get-user-id="getUserId"></search-user>
                               </div>
+                              <!-- user search end -->
                           </div>
                         </div>
                      </div>
@@ -157,15 +145,14 @@
 
 <script>
 import request, { createRequestURI } from '../../util/request';
-import plusMessageBundle from 'plus-message-bundle';
+import { plusMessageFirst } from '../../filters';
+import { uploadFile } from '../../util/upload';
 const PersonalCertificationEdit = {
     data: () => ({
         loadding: true,
         users: [],
         categories: [],
         attachmentUrl: '',
-        username: '',
-        dropdownMenuClass: '',
         certification: {
           user_id: '',
           name: '',
@@ -208,8 +195,8 @@ const PersonalCertificationEdit = {
             this.categories = response.data;
             this.loadding = false;
           }).catch(({ response: { data: { errors = ['加载认证详情失败'] } = {} } = {} }) => {
-            let Message = new plusMessageBundle(data);
-            this.message.error = Message.getMessage();
+            this.loadding = false;
+            this.message.error = plusMessageFirst(errors);
           }); 
         },
         /**
@@ -227,95 +214,53 @@ const PersonalCertificationEdit = {
             this.$router.replace({ path: `/certifications/${data.data.certification_id}` });
           }).catch(({ response: { data = {} } = {} }) => {
             $('#add-btn').button('reset');
-            let Message = new plusMessageBundle(data);
-            this.message.error = Message.getMessage();
-          });
-        },
-        /**
-         * 搜索用户
-         */
-        searchUser () {
-          request.get(
-            createRequestURI('find/nocertification/users?keyword=' + this.username),
-            { validateStatus: status => status === 200 }
-          ).then(response => {
-            this.dropdownMenuClass = 'open';
-            this.users = response.data;
-          }).catch(({ response: { data: { message: [ message ] = [] } = {} } = {} }) => {
-            this.search.message = message;
+            this.message.error = plusMessageFirst(data);
           });
         },
         /**
          * 上传附件
          */
         uploadAttachment (e) {
-          var that = this;
-          let file = e.target.files[0]; 
-          let param = new FormData();
-          param.append('file', file);
-          // 设置请求头
-          let config = {
-            headers: { 
-              'Content-Type': 'multipart/form-data',
-              'Authorization': 'Bearer ' + window.TS.token 
-            }
-          };
-          let reader = new FileReader(); 
-          reader.readAsDataURL(file); 
-          reader.onload = function(e) {
-           request.post('/api/v2/files', param, config)
-            .then((response) => {
-              const { id: id, message: [message] = [] } = response.data;
+          uploadFile(e.target.files[0], (id) => {
+            
+              let upload = this.upload;
+              upload[upload.type == 1 ? 'front' : 'back'] = `${window.TS.api}/files/${id}`;
 
-              let upload = that.upload;
-              let attachmentUrl =  `/api/v2/files/${id}`;
+              let cer = this.certification;
 
-              if (upload.type == 1) {
-                upload.front = attachmentUrl;
+              if (cer.type == 'org') {
+                cer.files = [id];
               } else {
-                upload.back = attachmentUrl;
-              }
-
-              if (that.certification.type == 'org') {
-                that.certification.files = [id];
-              } else {
-                let filesLength = that.certification.files.length;
-                if (filesLength <= 0) {
-                  that.certification.files = [id]
+                let length = cer.files.length;
+                if (length <= 0) {
+                  cer.files = [id]
                 } else {
-                  if (filesLength == 1) {
+                  if (length == 1) {
                     if (upload.type == 2) {
-                      that.certification.files.push(id);
+                      cer.files.push(id);
                     } else {
-                      that.certification.files.unshift(id);
+                      cer.files.unshift(id);
                     }
                   } else {
                     if (upload.type == 1) {
-                      that.certification.files.splice(0, 1);
-                      that.certification.files.unshift(id);
+                      cer.files.splice(0, 1);
+                      cer.files.unshift(id);
                     } else {
-                      that.certification.files.splice(1, 1);
-                      that.certification.files.push(id);
+                      cer.files.splice(1, 1);
+                      cer.files.push(id);
                     }
                   }
                 }
               }
-
-            }).catch(({ response: { data = {} } = {} }) => {
-              let Message = new plusMessageBundle(data);
-              that.message.error = Message.getMessage();
-            });
-          }
+          });
         },
-        choiceUser (userId) {
-          let id = parseInt(userId);
-          this.dropdownMenuClass = this.username =  '';
-          this.certification.user_id = id ? id : '';
+        getUserId (userId) {
+          this.certification.user_id = userId ? userId : null;
         },
         triggerUpload (type) {
           this.upload.type = type;
           this.$refs.clickinput.click();
-        }
+        },
     },
     created () {
       this.getCertificationCategories();

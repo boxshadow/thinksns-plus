@@ -59,11 +59,11 @@
                             <input type="url" class="form-control" placeholder="头像链接" v-model="ad.data.avatar">
                             <span class="input-group-btn">
                               <button class="btn btn-default" @click="triggerUpload(key)" id="">上传</button>
-                              <input type="file" class="hide" :class="key+'-input'" @change="uploadAttachment(key)">
+                              <input type="file" class="hide" :class="key+'-input'" @change="uploadAttachment(key, $event)">
                             </span>
                           </div>
                         </div>
-                        <span class="help-block col-md-3">必填，头像</span>
+                        <span class="help-block col-md-3">{{ (item.split('|'))[2] }}</span>
                       </div>
                       <!-- 广告名称 -->
                       <div class="form-group" v-else-if="key=='name'">
@@ -71,7 +71,7 @@
                         <div class="col-md-7">
                           <input type="text" class="form-control" v-model="ad.data.name" placeholder="用户名">
                         </div>
-                        <span class="help-block col-md-3">必填，用户名</span>
+                        <span class="help-block col-md-3">{{ (item.split('|'))[2] }}</span>
                       </div>
                       <!-- 广告内容 -->
                       <div class="form-group" v-else-if="key=='content'">
@@ -79,7 +79,7 @@
                         <div class="col-md-7">
                           <textarea class="form-control" v-model="ad.data.content" placeholder="内容"></textarea>
                         </div>
-                        <span class="help-block col-md-3">必填，广告内容描述</span>
+                        <span class="help-block col-md-3">{{ (item.split('|'))[2] }}</span>
                       </div>
                       <!-- 投放时间 -->
                       <div class="form-group" v-else-if="key=='time'">
@@ -87,7 +87,7 @@
                         <div class="col-md-7">
                            <input type="datetime-local" class="form-control" v-model="ad.data.time">
                         </div>
-                         <span class="help-block col-md-3">必填，广告投放时间</span>
+                         <span class="help-block col-md-3">{{ (item.split('|'))[2] }}</span>
                       </div>
                       <!-- 广告来源 -->
                       <div class="form-group" v-else-if="key=='from'">
@@ -95,7 +95,7 @@
                         <div class="col-md-7">
                            <input type="text" class="form-control" v-model="ad.data.from" placeholder="广告来源">
                         </div>
-                        <span class="help-block col-md-3">必填，广告来源</span>
+                        <span class="help-block col-md-3">{{ (item.split('|'))[2] }}</span>
                       </div>
                       <!-- 广告图片 -->
                       <div class="form-group" v-if="key=='image'">
@@ -105,11 +105,11 @@
                             <input type="url" class="form-control" placeholder="图片链接" v-model="ad.data.image">
                             <span class="input-group-btn">
                               <button class="btn btn-default" @click="triggerUpload(key)">上传</button>
-                              <input type="file" class="hide" :class="key+'-input'" @change="uploadAttachment(key)">
+                              <input type="file" class="hide" :class="key+'-input'" @change="uploadAttachment(key, $event)">
                             </span>
                           </div>
                         </div>
-                        <span class="help-block col-md-3">必填，广告图</span>
+                        <span class="help-block col-md-3">{{ (item.split('|'))[2] }}</span>
                       </div>
                       <!-- 广告链接 -->
                       <div class="form-group" v-else-if="key=='link'">
@@ -117,7 +117,7 @@
                         <div class="col-md-7">
                           <input type="text" class="form-control" v-model="ad.data.link" placeholder="广告链接">
                         </div>
-                        <span class="help-block col-md-3">必填，广告链接</span>
+                        <span class="help-block col-md-3">{{ (item.split('|'))[2] }}</span>
                       </div>
                       <!-- 广告标题 -->
                       <div class="form-group" v-else-if="key=='title'">
@@ -125,7 +125,7 @@
                         <div class="col-md-7">
                           <input type="text" class="form-control" v-model="ad.data.title" placeholder="标题">
                         </div>
-                        <span class="help-block col-md-3">必填，广告标题</span>
+                        <span class="help-block col-md-3">{{ (item.split('|'))[2] }}</span>
                       </div>
                     </div>
                   </template>
@@ -155,7 +155,8 @@
 </template>
 <script>
 import request, { createRequestURI } from '../../util/request';
-import plusMessageBundle from 'plus-message-bundle';
+import { uploadFile } from '../../util/upload';
+import { plusMessageFirst } from '../../filters';
 const AddAdComponent = {
 
     data: () => ({
@@ -228,7 +229,7 @@ const AddAdComponent = {
           this.spaceChang();
           this.typeChang();
         }).catch(({ response: { data: { errors = ['加载广告失败'] } = {} } = {} }) => {
-          this.message.error = errors;
+          this.message.error = plusMessageFirst(errors);
         });
       },
 
@@ -245,8 +246,7 @@ const AddAdComponent = {
         ).then(({ data: { message: [ message ] = [] } }) => {
             this.message.success = message;
         }).catch(({ response: { data = {} } = {} }) => {
-            const Message = plusMessageBundle(data);
-            this.message.error = Message.getMessage();
+            this.message.error = plusMessageFirst(data);
         });
       },
 
@@ -254,37 +254,10 @@ const AddAdComponent = {
         $('.' + key + '-input').click();
       },
 
-      uploadAttachment (type) {
-        let e = window.event || arguments[0];
-        var that = this;
-        let file = e.target.files[0]; 
-        let param = new FormData();
-        param.append('file', file);
-        // 设置请求头
-        let config = {
-          headers: { 
-            'Content-Type': 'multipart/form-data',
-            'Authorization': 'Bearer ' + window.TS.token 
-          }
-        };
-        let reader = new FileReader(); 
-        reader.readAsDataURL(file); 
-        reader.onload = function(e) {
-         request.post('/api/v2/files', param, config)
-          .then((response) => {
-              const { id: id, message: [message] = [] } = response.data;
-              let origin = window.location.origin;
-              let fileUrl = origin + '/api/v2/files/' + id;
-              if (type == 'image') {
-                that.ad.data.image = fileUrl;
-              } else if(type == 'avatar') {
-                that.ad.data.avatar = fileUrl;
-              }
-          }).catch((error) => {
-             console.log(this.ad);
-              console.log(error);
-          });
-        }
+      uploadAttachment (type, event) {
+        uploadFile(event.target.files[0], (id) => {
+          this.ad.data[type] = `${window.TS.api}/files/${id}`;
+        });
       },
 
       spaceChang () {

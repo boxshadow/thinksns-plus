@@ -40,7 +40,7 @@ class CertificationController extends Controller
         });
 
         $total = $query->count('id');
-        $items = $query->orderBy('id', 'desc')
+        $items = $query->orderBy('updated_at', 'desc')
         ->limit($limit)
         ->offset($offset)
         ->get();
@@ -68,13 +68,6 @@ class CertificationController extends Controller
         );
 
         return $counts;
-    }
-
-    protected function transformCertificationCountData($data)
-    {
-        if ($data) {
-        } else {
-        }
     }
 
     /**
@@ -186,6 +179,7 @@ class CertificationController extends Controller
 
         $certification->data = array_merge($certification->data, array_filter($updateData));
         $certification->status = 1;
+        $certification->certification_name = $type;
 
         return $certification->getConnection()->transaction(function () use ($files, $type, $certification) {
             $files->each(function ($file) use ($certification) {

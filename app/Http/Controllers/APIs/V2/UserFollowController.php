@@ -20,15 +20,12 @@ class UserFollowController extends Controller
     public function followers(Request $request, ResponseFactoryContract $response, UserModel $user)
     {
         $target = $request->user('api')->id ?? 0;
-        $limit = $request->query('limit', 20);
-        $after = $request->query('after', false);
+        $limit = $request->query('limit', 15);
+        $offset = $request->query('offset', 0);
 
         $followers = $user->followers()
-            ->when($after, function ($query) use ($after, $user) {
-                return $query->where($user->getQualifiedKeyName(), '<', $after);
-            })
+            ->offset($offset)
             ->limit($limit)
-            ->orderBy('id', 'desc')
             ->get();
 
         return $user->getConnection()->transaction(function () use ($followers, $target, $response) {
@@ -53,15 +50,12 @@ class UserFollowController extends Controller
     public function followings(Request $request, ResponseFactoryContract $response, UserModel $user)
     {
         $target = $request->user('api')->id ?? 0;
-        $limit = $request->query('limit', 20);
-        $after = $request->query('after', false);
+        $limit = $request->query('limit', 15);
+        $offset = $request->query('offset', 0);
 
         $followings = $user->followings()
-            ->when($after, function ($query) use ($after, $user) {
-                return $query->where($user->getQualifiedKeyName(), '<', $after);
-            })
+            ->offset($offset)
             ->limit($limit)
-            ->orderBy('id', 'desc')
             ->get();
 
         return $user->getConnection()->transaction(function () use ($followings, $target, $response) {
